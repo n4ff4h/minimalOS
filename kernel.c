@@ -36,7 +36,7 @@ enum vga_color {
 	COLOR_LIGHT_BROWN = 14,
 	COLOR_WHITE = 15,
 };
- 
+
 uint8_t make_color(enum vga_color fg, enum vga_color bg) {
   return fg | bg << 4;
 }
@@ -65,7 +65,7 @@ uint16_t* terminal_buffer;
 void terminal_initialize() {
   terminal_row = 0;
   terminal_column = 0;
-  terminal_color = make_color(COLOR_LIGHT_GREY, COLOR_BLACK);
+  terminal_color = make_color(COLOR_RED, COLOR_BLACK);
   terminal_buffer = (uint16_t*) 0xB8000;
   for (size_t y = 0; y < VGA_HEIGHT; y++) {
     for (size_t x = 0; x < VGA_WIDTH; x++) {
@@ -97,7 +97,32 @@ void terminal_putchar(char c) {
 void terminal_writestring(const char* data) {
   size_t datalen = strlen(data);
   for (size_t i = 0; i < datalen; i++)
-    terminal_putchar(data[i]);
+    if (data[i] == '\n') {
+      terminal_column = 0;
+      terminal_row++;
+    } else {
+      terminal_putchar(data[i]);
+    }
+}
+
+// Function which prints the given text after changing the colour
+void printOnTerminal(uint8_t color) {
+  terminal_setcolor(color);
+  terminal_writestring("Hello, kernel World!\n");
+}
+
+// Function to change colour of text depending on the number of lines added
+void myFunction(int i) {
+
+      if (i == 0) {
+        printOnTerminal(COLOR_RED);
+      } else if (i >= 1 && i <= 6) {
+        printOnTerminal(COLOR_WHITE);
+      } else if (i >= 7 && i <= 24) {
+        printOnTerminal(COLOR_BLUE);
+      } else if (i >= 25 && i <= 30) {
+        printOnTerminal(COLOR_GREEN);
+      }
 }
 
 #if defined(__cplusplus)
@@ -106,10 +131,35 @@ extern "C" /* Use C linkage for kernel_main. */
 void kernel_main() {
   /* Initialize terminal interface */
   terminal_initialize();
-  
-  /* Since there is no support for newlines in terminal_putchar
-   * yet, '\n' will produce some VGA specific character instead.
-   * This is normal.
-   */
-  terminal_writestring("Hello, kernel World!\n");
+
+  for(int i = 0; i <= 31; i++) {
+    if (terminal_row <= VGA_HEIGHT) {
+      // Adding lines
+      myFunction(i);
+    } else {
+      // Shifting rows to the top of the array
+      for (size_t x = 0; x < VGA_HEIGHT; x++) {
+        for(size_t y = 0; y < VGA_WIDTH; y++) {
+          
+            size_t current_index = x * VGA_WIDTH + y;
+            size_t next_index = (x+1) * VGA_WIDTH + y;
+            terminal_buffer[current_index] = terminal_buffer[next_index];
+
+        }
+      }
+      // Adding to the last row after shifting
+      const char* data = "Hello, kernel World!";
+      size_t datalen = strlen(data);
+      for (size_t n = 0; n < datalen; n++) {
+        size_t row = 24;
+        terminal_putentryat(data[n], COLOR_GREEN, n, row);
+        if (++terminal_column == VGA_WIDTH) {
+          terminal_column = 0;
+          if (++terminal_row == VGA_HEIGHT) {
+            terminal_row = 0;
+          }
+        }
+      }
+    }
+  }
 }
